@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لعبة الخداع | العب مع أصدقائك</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #333; padding: 20px; margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+        .game-container { background: white; padding: 25px; border-radius: 20px; width: 90%; max-width: 500px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); margin-top: 20px; }
+        .ad-banner { width: 90%; max-width: 500px; height: 60px; background: #e0e0e0; border: 2px dashed #999; display: flex; align-items: center; justify-content: center; color: #666; font-size: 14px; margin-bottom: 15px; border-radius: 10px; }
+        .screen { display: none; }
+        .screen.active { display: block; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        input { padding: 15px; margin: 10px 0; width: 85%; font-size: 16px; border-radius: 12px; border: 2px solid #ddd; outline: none; transition: 0.3s; }
+        input:focus { border-color: #667eea; }
+        button { padding: 15px; margin: 10px 0; width: 90%; font-size: 18px; font-weight: bold; border-radius: 12px; border: none; cursor: pointer; background: #667eea; color: white; transition: 0.3s; }
+        button:hover { background: #5a6fd6; transform: scale(1.02); }
+        .option { display: block; margin: 12px auto; padding: 15px; background: #f8f9fa; border: 2px solid #e9ecef; border-radius: 12px; cursor: pointer; width: 85%; transition: 0.3s; font-size: 16px; }
+        .option:hover { background: #e2e6ea; border-color: #667eea; transform: scale(1.02); }
+        h2 { color: #4a4a4a; margin-bottom: 20px; }
+        .highlight { color: #667eea; font-weight: bold; }
+        ul { list-style: none; padding: 0; }
+        li { background: #f1f3f5; margin: 5px 0; padding: 10px; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <div class="ad-banner">مساحة إعلانية (Ad Banner)</div>
+    <div class="game-container">
+        <h1>🎭 لعبة الخداع</h1>
+        <div id="loginScreen" class="screen active">
+            <h2>انضم للعبة</h2>
+            <input type="text" id="playerName" placeholder="اكتب اسمك المستعار">
+            <input type="text" id="roomCode" placeholder="رقم الغرفة (مثال: 1234)">
+            <button onclick="joinGame()">دخول اللعبة 🚀</button>
+        </div>
+        <div id="waitingScreen" class="screen">
+            <h2>⏳ في انتظار اللاعبين...</h2>
+            <p>أرسل هذا الرقم لأصدقائك ليدخلوا معك:</p>
+            <h1 class="highlight" id="displayRoomCode" style="font-size: 40px; margin: 10px 0;"></h1>
+            <p>اللاعبون المتصلون:</p>
+            <ul id="playersList"></ul>
+        </div>
+        <div id="writingScreen" class="screen">
+            <h2 id="questionText" class="highlight"></h2>
+            <p>اكتب إجابة خاطئة أو مضحكة لتخادع بها أصدقاءك:</p>
+            <input type="text" id="answerInput" placeholder="اكتب إجابتك هنا...">
+            <button onclick="submitAnswer()">إرسال الإجابة ✅</button>
+        </div>
+        <div id="votingScreen" class="screen">
+            <h2>🤔 أي إجابة هي الصحيحة؟</h2>
+            <p>اختر بحذر، قد تكون إجابة أحد أصدقائك!</p>
+            <div id="optionsContainer"></div>
+        </div>
+        <div id="resultsScreen" class="screen">
+            <h2>🏆 نتيجة الجولة</h2>
+            <p>الإجابة الصحيحة كانت: <span class="highlight" id="correctAnswerText"></span></p>
+            <h3>النتائج الحالية:</h3>
+            <ul id="scoresList"></ul>
+            <p style="color: #666; font-size: 14px;">الجولة التالية تبدأ تلقائياً...</p>
+        </div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let myName = '', myRoom = '';
+        function joinGame() {
+            myName = document.getElementById('playerName').value.trim();
+            myRoom = document.getElementById('roomCode').value.trim();
+            if (!myName || !myRoom) return alert('الرجاء كتابة الاسم ورقم الغرفة');
+            socket.emit('joinRoom', { roomCode: myRoom, name: myName });
+            showScreen('waitingScreen');
+            document.getElementById('displayRoomCode').innerText = myRoom;
+        }
+        function submitAnswer() {
+            const answer = document.getElementById('answerInput').value.trim();
+            if (!answer) return alert('اكتب إجابة أولاً!');
+            socket.emit('submitAnswer', answer);
+            document.getElementById('writingScreen').innerHTML = '<h2>✅ تم الإرسال!</h2><p>في انتظار باقي اللاعبين ليكتبوا إجاباتهم...</p>';
+        }
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+        socket.on('playerList', (players) => {
+            document.getElementById('playersList').innerHTML = players.map(p => `<li>🎮 ${p}</li>`).join('');
+        });
+        socket.on('newQuestion', (data) => {
+            showScreen('writingScreen');
+            document.getElementById('writingScreen').innerHTML = `
+                <h2 id="questionText" class="highlight">${data.question}</h2>
+                <p>اكتب إجابة خاطئة أو مضحكة لتخادع بها أصدقاءك:</p>
+                <input type="text" id="answerInput" placeholder="اكتب إجابتك هنا...">
+                <button onclick="submitAnswer()">إرسال الإجابة ✅</button>
+            `;
+        });
+        socket.on('votingPhase', (data) => {
+            showScreen('votingScreen');
+            const container = document.getElementById('optionsContainer');
+            container.innerHTML = '';
+            data.options.forEach(opt => {
+                const div = document.createElement('div');
+                div.className = 'option';
+                div.innerText = opt;
+                div.onclick = () => {
+                    socket.emit('submitVote', opt);
+                    container.innerHTML = '<h3 style="color: green;">✅ تم التصويت! في انتظار الآخرين...</h3>';
+                };
+                container.appendChild(div);
+            });
+        });
+        socket.on('showResults', (data) => {
+            showScreen('resultsScreen');
+            document.getElementById('correctAnswerText').innerText = data.correctAnswer;
+            const sortedScores = data.scores.sort((a, b) => b.score - a.score);
+            document.getElementById('scoresList').innerHTML = sortedScores.map((s, index) =>
+                `<li style="background: ${index === 0 ? '#d4edda' : '#f1f3f5'}">
+                    ${index === 0 ? '👑 ' : ''}<strong>${s.name}</strong>: ${s.score} نقطة
+                </li>`
+            ).join('');
+        });
+    </script>
+</body>
+</html>
